@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -6,8 +7,10 @@ namespace CampoMinadoVR
     /// <summary>
     /// Uma celula da grid.
     ///
-    /// ESBOCO: o estado e os eventos ja estao aqui, mas a logica de verdade
-    /// (revelar em cascata, contar minas, ganhar/perder) ainda nao foi escrita.
+    /// A celula guarda o proprio estado e cuida do proprio visual. As regras
+    /// (onde ficam as minas, cascata, vitoria/derrota) ficam no MinesweeperGame.
+    /// Reveal() e ToggleFlag() sao as entradas publicas usadas pela interacao:
+    /// elas pedem ao jogo para agir, e o jogo chama os metodos internos de volta.
     /// </summary>
     [DisallowMultipleComponent]
     public class MinesweeperCell : MonoBehaviour
@@ -22,14 +25,14 @@ namespace CampoMinadoVR
         [SerializeField] bool revealed;
         [SerializeField] bool flagged;
 
-        [Header("Referencias (opcionais por enquanto)")]
+        [Header("Referencias")]
         [Tooltip("Bomba instanciada nesta celula, se houver.")]
         public MinesweeperBomb bomb;
 
-        [Tooltip("Bandeira instanciada nesta celula, se houver.")]
+        [Tooltip("Bandeira fincada nesta celula, se houver.")]
         public MinesweeperFlag flag;
 
-        [Tooltip("Objeto que mostra o numero de minas vizinhas. Ainda nao usado.")]
+        [Tooltip("Objeto que mostra o numero de minas vizinhas. Criado em runtime.")]
         public GameObject numberVisual;
 
         [Header("Eventos")]
@@ -37,6 +40,10 @@ namespace CampoMinadoVR
         public UnityEvent<MinesweeperCell> onFlagChanged;
 
         MinesweeperGrid grid;
+        MinesweeperGame game;
+        MeshRenderer meshRenderer;
+        Material hiddenMaterial;
+        GameObject fallbackMineVisual;
 
         public int X => x;
         public int Y => y;
@@ -50,49 +57,112 @@ namespace CampoMinadoVR
         public MinesweeperGrid Grid =>
             grid != null ? grid : (grid = GetComponentInParent<MinesweeperGrid>());
 
+        public MinesweeperGame Game => game;
+
+        /// <summary>Topo da placa em coordenadas de mundo. Util para posicionar coisas em cima.</summary>
+        public Vector3 TopPosition =>
+            transform.position + Vector3.up * (transform.lossyScale.y * 0.5f);
+
         public void Setup(int gridX, int gridY)
         {
             x = gridX;
             y = gridY;
         }
 
-        // ------------------------------------------------------------------
-        // ESBOCOS - preencher conforme a logica do jogo for definida
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// Revela a celula. ESBOCO.
-        /// TODO: trocar material/animar a placa, mostrar o numero de vizinhos,
-        /// disparar a bomba se houver uma, e propagar em cascata quando
-        /// adjacentMines == 0.
-        /// </summary>
-        public void Reveal()
+        /// <summary>Liga a celula ao jogo e guarda o material original (escondido).</summary>
+        public void Bind(MinesweeperGame owner)
         {
-            if (revealed || flagged) return;
-
-            revealed = true;
-            onRevealed?.Invoke(this);
-
-            // TODO: feedback visual da celula revelada
-            // TODO: if (hasMine) bomb?.Trigger();
-            // TODO: if (adjacentMines == 0) revelar vizinhos recursivamente
+            game = owner;
+            meshRenderer = GetComponent<MeshRenderer>();
+            if (meshRenderer != null && hiddenMaterial == null)
+                hiddenMaterial = meshRenderer.sharedMaterial;
         }
 
-        /// <summary>
-        /// Marca / desmarca a bandeira. ESBOCO.
-        /// TODO: instanciar ou esconder o objeto da bandeira e atualizar o contador da HUD.
-        /// </summary>
+        // ------------------------------------------------------------------
+        // Entradas publicas (chamadas pela interacao VR ou por UnityEvents)
+        // ------------------------------------------------------------------
+
+        /// <summary>Pede para revelar esta celula.</summary>
+        public void Reveal()
+        {
+            if (game != null) game.RequestReveal(this);
+            else MarkRevealed(null, Color.white, 0f);
+        }
+
+        /// <summary>Pede para marcar/desmarcar a bandeira nesta celula.</summary>
         public void ToggleFlag()
+        {
+            if (game != null) game.RequestToggleFlag(this);
+            else SetFlagged(!flagged);
+        }
+
+        // ------------------------------------------------------------------
+        // Chamados pelo MinesweeperGame
+        // ------------------------------------------------------------------
+
+        /// <summary>Marca como revelada, troca o material e mostra o numero.</summary>
+        public void MarkRevealed(Material revealedMaterial, Color numberColor, float numberFontSize)
         {
             if (revealed) return;
 
-            flagged = !flagged;
-            onFlagChanged?.Invoke(this);
+            revealed = true;
 
-            // TODO: flag?.SetPlanted(flagged);
+            if (meshRenderer != null && revealedMaterial != null)
+                meshRenderer.sharedMaterial = revealedMaterial;
+
+            if (!hasMine && adjacentMines > 0 && numberFontSize > 0f)
+                ShowNumber(numberColor, numberFontSize);
+
+            onRevealed?.Invoke(this);
         }
 
-        /// <summary>Volta a celula ao estado inicial. ESBOCO.</summary>
+        public void SetFlagged(bool value)
+        {
+            if (revealed || flagged == value) return;
+
+            flagged = value;
+            onFlagChanged?.Invoke(this);
+        }
+
+        /// <summary>Mostra a mina desta celula (fim de jogo).</summary>
+        public void ShowMine(Material tileMaterial, bool exploded)
+        {
+            if (!hasMine) return;
+
+            revealed = true;
+            if (meshRenderer != null && tileMaterial != null)
+                meshRenderer.sharedMaterial = tileMaterial;
+
+            if (bomb != null)
+            {
+                if (exploded) bomb.Trigger();
+                else bomb.SetVisualVisible(true);
+                return;
+            }
+
+            // Sem prefab de bomba: usa uma esfera simples.
+            if (fallbackMineVisual == null)
+            {
+                fallbackMineVisual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                fallbackMineVisual.name = $"Mine_{x}_{y}";
+                Destroy(fallbackMineVisual.GetComponent<Collider>());
+
+                // Parenteia no GridRoot (escala 1) para nao herdar a escala achatada da placa.
+                fallbackMineVisual.transform.SetParent(transform.parent, true);
+
+                float size = Mathf.Min(transform.lossyScale.x, transform.lossyScale.z) * 0.5f;
+                fallbackMineVisual.transform.localScale = Vector3.one * size;
+                fallbackMineVisual.transform.position = TopPosition + Vector3.up * size * 0.5f;
+
+                var mat = fallbackMineVisual.GetComponent<MeshRenderer>().material;
+                var mineColor = new Color(0.08f, 0.08f, 0.08f);
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", mineColor);
+                if (mat.HasProperty("_Color"))     mat.SetColor("_Color", mineColor);
+            }
+            fallbackMineVisual.SetActive(true);
+        }
+
+        /// <summary>Volta a celula ao estado inicial.</summary>
         public void ResetCell()
         {
             revealed = false;
@@ -100,7 +170,43 @@ namespace CampoMinadoVR
             hasMine = false;
             adjacentMines = 0;
 
-            // TODO: restaurar material original e esconder numero/bandeira/bomba
+            if (meshRenderer != null && hiddenMaterial != null)
+                meshRenderer.sharedMaterial = hiddenMaterial;
+
+            if (numberVisual != null) numberVisual.SetActive(false);
+            if (fallbackMineVisual != null) fallbackMineVisual.SetActive(false);
+            if (bomb != null) bomb.SetVisualVisible(false);
+        }
+
+        void ShowNumber(Color color, float fontSize)
+        {
+            TextMeshPro text;
+
+            if (numberVisual == null)
+            {
+                numberVisual = new GameObject($"Number_{x}_{y}");
+                // Mesmo motivo da mina: GridRoot tem escala 1, a placa nao.
+                numberVisual.transform.SetParent(transform.parent, false);
+
+                text = numberVisual.AddComponent<TextMeshPro>();
+                text.alignment = TextAlignmentOptions.Center;
+                text.fontStyle = FontStyles.Bold;
+                text.textWrappingMode = TextWrappingModes.NoWrap;
+                text.rectTransform.sizeDelta = new Vector2(transform.lossyScale.x, transform.lossyScale.z);
+            }
+            else
+            {
+                text = numberVisual.GetComponent<TextMeshPro>();
+            }
+
+            // Deitado sobre a placa, levemente acima para nao brigar com a superficie.
+            numberVisual.transform.position = TopPosition + Vector3.up * 0.002f;
+            numberVisual.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+            text.text = adjacentMines.ToString();
+            text.fontSize = fontSize;
+            text.color = color;
+            numberVisual.SetActive(true);
         }
 
         public override string ToString() => $"Cell({x},{y})";

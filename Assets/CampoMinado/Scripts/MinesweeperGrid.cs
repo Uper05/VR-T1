@@ -63,10 +63,29 @@ namespace CampoMinadoVR
         /// <summary>Profundidade total ocupada pela grid, em metros.</summary>
         public float TotalDepth => height * cellSize + Mathf.Max(0, height - 1) * lineWidth;
 
+        void Awake()
+        {
+            RefreshCells();
+        }
+
         void Start()
         {
             if (buildOnStart && FindGridRoot() == null)
                 BuildGrid();
+        }
+
+        /// <summary>
+        /// Recarrega a lista de celulas a partir dos filhos ja existentes na cena.
+        /// Necessario porque a grid costuma ser gerada no editor e salva na cena,
+        /// e nesse caso a lista "cells" chega vazia no Play.
+        /// </summary>
+        public void RefreshCells()
+        {
+            cells.Clear();
+            var root = FindGridRoot();
+            if (root == null) return;
+
+            cells.AddRange(root.GetComponentsInChildren<MinesweeperCell>(true));
         }
 
         [ContextMenu("Gerar Grid")]
@@ -138,6 +157,7 @@ namespace CampoMinadoVR
         public MinesweeperCell GetCell(int x, int y)
         {
             if (x < 0 || x >= width || y < 0 || y >= height) return null;
+            if (cells.Count == 0) RefreshCells();
 
             foreach (var cell in cells)
             {
