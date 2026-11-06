@@ -4472,7 +4472,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: -4.3
       objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_LocalRotation.w
@@ -10059,6 +10059,7 @@ GameObject:
   m_Component:
   - component: {fileID: 991461212}
   - component: {fileID: 991461211}
+  - component: {fileID: 991461213}
   m_Layer: 0
   m_Name: CampoMinado
   m_TagString: Untagged
@@ -10105,6 +10106,49 @@ Transform:
   - {fileID: 479801687}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &991461213
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 991461210}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b20740888dd1452d9399c834f4fe229b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CampoMinadoVR.MinesweeperGame
+  mineCount: 20
+  safeFirstReveal: 1
+  autoRestartDelay: 4
+  revealedMaterial: {fileID: 2100000, guid: 023e9de6d2d1ca5449da148daab31405, type: 2}
+  revealedAltMaterial: {fileID: 2100000, guid: 1c87eb1d80cb7ea42a320a98a015c951, type: 2}
+  explodedMaterial: {fileID: 0}
+  numberFontSize: 3.5
+  numberColors:
+  - {r: 0.1, g: 0.25, b: 0.85, a: 1}
+  - {r: 0.1, g: 0.55, b: 0.15, a: 1}
+  - {r: 0.85, g: 0.1, b: 0.1, a: 1}
+  - {r: 0.1, g: 0.1, b: 0.5, a: 1}
+  - {r: 0.5, g: 0.1, b: 0.1, a: 1}
+  - {r: 0.05, g: 0.5, b: 0.5, a: 1}
+  - {r: 0.05, g: 0.05, b: 0.05, a: 1}
+  - {r: 0.35, g: 0.35, b: 0.35, a: 1}
+  flagPrefab: {fileID: 0}
+  addInteractionToCells: 1
+  statusText: {fileID: 0}
+  onGameStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onGameWon:
+    m_PersistentCalls:
+      m_Calls: []
+  onGameLost:
+    m_PersistentCalls:
+      m_Calls: []
+  onMinesRemainingChanged:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &1031502931
 GameObject:
   m_ObjectHideFlags: 0
@@ -21147,8 +21191,8 @@ MeshFilter:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 299639869}
   - {fileID: 441087506}
+  - {fileID: 299639869}
   - {fileID: 756192408}
   - {fileID: 2092139010}
   - {fileID: 1249617921}
